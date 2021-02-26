@@ -17,6 +17,28 @@ if [ ! "$SKIP_PIP_INSTALL" ]; then
         PIP_EXTRA_INDEX_URL="$(cat "$ENV_DIR/PIP_EXTRA_INDEX_URL")"
         export PIP_EXTRA_INDEX_URL
         mcount "buildvar.PIP_EXTRA_INDEX_URL"
+    else
+        AWS_CODEARTIFACT_ACCESS_KEY_ID="$(cat $ENV_DIR/AWS_CODEARTIFACT_ACCESS_KEY_ID)"
+        AWS_CODEARTIFACT_SECRET_ACCESS_KEY="$(cat $ENV_DIR/AWS_CODEARTIFACT_SECRET_ACCESS_KEY)"
+
+        # Uplift Fork - install from codeartifact
+        if [ "$AWS_CODEARTIFACT_ACCESS_KEY_ID" ]; then
+            puts-step "Private pypi repository enabled, obtaining pip index-url..."
+
+            aws configure set aws_access_key_id $AWS_CODEARTIFACT_ACCESS_KEY_ID --profile uplift
+            aws configure set aws_secret_access_key $AWS_CODEARTIFACT_SECRET_ACCESS_KEY --profile uplift
+            aws configure set region us-east-2 --profile uplift
+
+            CODEARTIFACT_REPOSITORY_URL=`aws codeartifact --profile uplift get-repository-endpoint --domain uplift --repository uplift-tools --format pypi --query repositoryEndpoint --output text`
+            CODEARTIFACT_AUTH_TOKEN=`aws codeartifact --profile uplift get-authorization-token --domain uplift --query authorizationToken --output text`
+
+            PIP_EXTRA_INDEX_URL="https://uplift-ltd:$CODEARTIFACT_AUTH_TOKEN@${CODEARTIFACT_REPOSITORY_URL:8}simple/"
+            export PIP_EXTRA_INDEX_URL
+            mcount "buildvar.PIP_EXTRA_INDEX_URL"
+            puts-step "Set PIP_EXTRA_INDEX_URL env var"
+        else
+            puts-step "Private pypi repository disabled"
+        fi
     fi
 
     set +e
